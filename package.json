@@ -1,0 +1,10 @@
+{
+  "name": "bfx-hist-fetcher",
+  "version": "1.0.0",
+  "main": "main.js",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.24.0",
+    "mongodb": "^3.6.3"
+  }
+}

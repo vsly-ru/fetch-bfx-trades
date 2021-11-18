@@ -1,0 +1,4 @@
+/node_modules/
+/bfx-trades/
+.DS_Store
+*.zip
