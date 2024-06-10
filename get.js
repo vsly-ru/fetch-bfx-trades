@@ -3,14 +3,7 @@ if (!process.argv[2] || !process.argv[3]) {
   Usage: node get.js tETHUSD 2016.3.1 (offset? – days from now)`);
 }
 
-const {
-  PAIR,
-  getTrades,
-  getHourDate,
-  pad,
-  t2oid,
-  log,
-} = require("./setup.js");
+const { PAIR, getTrades, getHourDate, pad, t2oid, log } = require("./setup.js");
 
 var MongoClient = require("mongodb").MongoClient;
 var url = "mongodb://localhost:27017/";
@@ -20,13 +13,14 @@ let totalProcessed = 0;
 let totalInserted = 0;
 let beginningOfTime = getHourDate(0).getTime();
 
-const offset_days_back_from_now = process.argv[4];   // offset or 0
-if (offset_days_back_from_now) log(`running with offset ${offset_days_back_from_now} days`);
-let nextTime = offset_days_back_from_now ? Date.now() - parseInt(parseFloat(offset_days_back_from_now) * 86400000)
+const offset_days_back_from_now = process.argv[4]; // offset or 0
+if (offset_days_back_from_now)
+  log(`running with offset ${offset_days_back_from_now} days`);
+let nextTime = offset_days_back_from_now
+  ? Date.now() - parseInt(parseFloat(offset_days_back_from_now) * 86400000)
   : beginningOfTime;
 
 //   let hour = 0;
-
 
 MongoClient.connect(url, { useUnifiedTopology: true }, (err, database) => {
   if (err) {
@@ -43,25 +37,39 @@ const started_time = Date.now();
 
 const speedPerSecond = () => {
   const passed = Date.now() - started_time - -1;
-  return ((totalProcessed / passed) * 1000).toFixed(2);
+  return ((totalProcessed / passed) * 1000).toFixed(1);
 };
 
-log(`starting downloading from ${new Date(nextTime).toDateString()}`)
+log(`starting downloading from ${new Date(nextTime).toDateString()}`);
 
 async function next() {
   const prevTime = nextTime;
-  nextTime = await processData(await getTrades(nextTime, null, true));
-  if (!nextTime) return log(`STOP at ${prevTime}`);
+  const trades = await getTrades(nextTime, null, true);
+  nextTime = await processData(trades);
+  if (!nextTime) return log(`DONE at ${prevTime}`);
   setTimeout(() => {
     next(nextTime);
-  }, 777);
+  }, 5000 + (trades ? 0 : 10_000));
+}
+
+function padDate(num, size = 2) {
+  let s = String(num);
+  while (s.length < size) s = "0" + s;
+  return s;
+}
+
+function printDate(date) {
+  if (typeof date === "number") date = new Date(date);
+  return `${date.getFullYear()}.${padDate(date.getMonth() + 1)}.${padDate(
+    date.getDate()
+  )}`;
 }
 
 var lastTime = 0;
 
 async function processData(data) {
   if (!data || !data.length) {
-    console.log('no data to process:', data);
+    console.log("no data to process:", data);
     return lastTime;
   }
   const count = data.length;
@@ -103,21 +111,22 @@ async function processData(data) {
         if (!err && re && re.insertedCount) inserted += re.insertedCount;
         totalInserted += inserted;
         const timeLeft = Date.now() - nextTime;
-        const DaysLeft = (timeLeft / 86400000).toFixed(2);
+        const DaysLeft = (timeLeft / 86400000).toFixed(0);
         const allTime = Date.now() - beginningOfTime;
         const percent =
-          pad((((allTime - timeLeft) / allTime) * 100).toFixed(1), 6) + "%";
+          pad((((allTime - timeLeft) / allTime) * 100).toFixed(2), 5) + "%";
         log(
-          `${new Date(
+          `${printDate(
             nextTime
-          ).toLocaleDateString()} | ${percent} ${DaysLeft} days left | written ${inserted > 0 ? "|green|" + pad(inserted, 5) : "|red|ZERO" + inserted
-          }|r| of ${count} new trades | total ${totalInserted} written trades |  ${speedPerSecond()} trades/s. | total processed: ${totalProcessed} trades`
+          )} | ${percent} ${DaysLeft} days left | written ${
+            inserted > 0 ? "|green|" + pad(inserted, 5) : "|red|ZERO" + inserted
+          }|r| | ${speedPerSecond()} TPS`
         );
         if (nextTime >= Date.now() - 600_000) {
           log(`${Date.now() - nextTime} ms left`);
           if (nextTime >= Date.now() - 55_000) {
             console.log();
-            log('TODAY -> DONE');
+            log("TODAY -> DONE");
             console.log();
             process.exit(0);
           }
